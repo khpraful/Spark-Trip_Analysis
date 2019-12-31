@@ -9,6 +9,7 @@ import sqlContext.implicits._
 val bike_df = sqlContext.read.format("com.databricks.spark.csv").option("header", "true").option("mode","DROPMALFORMED").load("file:///<path to files>/bike_data/2014-02-Citi_Bike_trip_data.csv")
 
 //Create queries
+//Which route Citi Bikers ride the most?
 bike_df.groupBy("start station name", "end station name").count().orderBy(desc("count")). select("start station name", "end station name", "count").show()
 
 val calcDistance: ((Double,Double,Double,Double) => Int) = (StartLat:Double, StartLong:Double, EndLat:Double, EndLong:Double) => {
@@ -26,10 +27,13 @@ import org.apache.spark.sql.functions._
 
 val sqlfunc = udf(calcDistance)
 
+//Find the biggest trip and its duration?
 bike_df.withColumn("Distance", sqlfunc(col("start station latitude"), col("start station longitude"), col("end station latitude"), col("end station longitude"))).orderBy(desc("Distance")).select("Distance", "tripduration").show()
 
+//How far do they go?
 bike_df.withColumn("Distance", sqlfunc(col("start station latitude"), col("start station longitude"), col("end station latitude"), col("end station longitude"))).groupBy("bikeid").agg(sum("Distance")).orderBy(desc("sum(Distance)")).show()
 
+//Which stations are most popular?
 bike_df.groupBy("start station name").count().orderBy(desc("count")).select ("start station name", "count").show()
 
 bike_df.groupBy("end station name").count().orderBy(desc("count")).select ("end station name", "count").show()
@@ -46,4 +50,5 @@ val day = dayformat.format(date)
 
 val sqlfunc1 = udf(calcDistance)
 
+//Which days of the week are most rides taken on?
 bike_df.withColumn("Day", sqlfunc1(col("starttime"))).groupBy("Day").count().select ("Day", "count").orderBy(desc("count")).show()
