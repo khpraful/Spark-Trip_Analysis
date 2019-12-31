@@ -1,0 +1,49 @@
+//Start spark-shell using Databricks Spark CSV package
+spark-shell --packages com.databricks:spark-csv_2.10:1.5.0
+
+//Create sqlContext and import required libraries
+val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+import sqlContext.implicits._
+
+//Create Dataframe from input file
+val bike_df = sqlContext.read.format("com.databricks.spark.csv").option("header", "true").option("mode","DROPMALFORMED").load("file:///<path to files>/bike_data/2014-02-Citi_Bike_trip_data.csv")
+
+//Create queries
+bike_df.groupBy("start station name", "end station name").count().orderBy(desc("count")). select("start station name", "end station name", "count").show()
+
+val calcDistance: ((Double,Double,Double,Double) => Int) = (StartLat:Double, StartLong:Double, EndLat:Double, EndLong:Double) => {
+    val avg_earth_radius = 6371
+    val latDistance = Math.toRadians(StartLat - EndLat)
+    val lngDistance = Math.toRadians(StartLong - EndLong)
+    val sinLat = Math.sin(latDistance / 2)
+    val sinLng = Math.sin(lngDistance / 2)
+    val a = sinLat * sinLat + (Math.cos(Math.toRadians(StartLat)) * Math.cos(Math.toRadians(EndLat)) * sinLng * sinLng)
+    val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    (avg_earth_radius * c).toInt
+     }
+
+import org.apache.spark.sql.functions._
+
+val sqlfunc = udf(calcDistance)
+
+bike_df.withColumn("Distance", sqlfunc(col("start station latitude"), col("start station longitude"), col("end station latitude"), col("end station longitude"))).orderBy(desc("Distance")).select("Distance", "tripduration").show()
+
+bike_df.withColumn("Distance", sqlfunc(col("start station latitude"), col("start station longitude"), col("end station latitude"), col("end station longitude"))).groupBy("bikeid").agg(sum("Distance")).orderBy(desc("sum(Distance)")).show()
+
+bike_df.groupBy("start station name").count().orderBy(desc("count")).select ("start station name", "count").show()
+
+bike_df.groupBy("end station name").count().orderBy(desc("count")).select ("end station name", "count").show()
+
+import java.text.SimpleDateFormat
+
+val calcDay:(String => String)= (startdate:String)=>{
+val dateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+val date = dateformat.parse(startdate)
+val dayformat = new SimpleDateFormat("E")
+val day = dayformat.format(date)
+(day)
+
+
+val sqlfunc1 = udf(calcDistance)
+
+bike_df.withColumn("Day", sqlfunc1(col("starttime"))).groupBy("Day").count().select ("Day", "count").orderBy(desc("count")).show()
